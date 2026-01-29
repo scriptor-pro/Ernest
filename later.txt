@@ -1,0 +1,2 @@
+Should consider switching to Svelte 5 later.
+Connecter avec le repo s'il y en a un dès l'onboarding.

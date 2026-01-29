@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Ernest
+Comment=Markdown and frontmatter editor
+Exec=ernest
+Icon=/home/Baudouin/Documents/Projets/ernest/src-tauri/icons/icon.png
+Terminal=false
+Type=Application
+Categories=Office;Utility;

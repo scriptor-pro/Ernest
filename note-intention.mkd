@@ -1,0 +1,14 @@
+Je souhaite vibe coder une application.
+
+Cette application sera aussi simple et robuste que possible. Cette application aura une interface graphique qui suivra le principe "pas de forme sans fonction". Cette application respectera les critères WCAG 2.1 AA. 
+
+Cette application est un éditeur de texte au format markdown destiné aux utilisateurs de static site generator.
+
+Cette application applique aux fichiers markdown le frontmatter correct pour les static site generator suivants : 11ty, Hugo, Jekyll, Gatsby, Astro. Cette liste de SSG est susceptible d'évoluer.
+
+à terme, cette application existera en version desktop/laptop linux .deb, .rpm au format Arch Linux, dans une version pouvant être installée sur Windows et en version Android.
+
+Cette application permettra de stocker les textes dans les clouds les plus répandus : dropbox, nextcloud, etc.
+
+à terme, cette application pourra pousser le contenu vers des dépôts dans les forges telles que GitHub, Codeberg, source hut etc.
+

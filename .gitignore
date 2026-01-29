@@ -1,0 +1,15 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/target-debug/
+src-tauri/target-release/
+*.log
+.DS_Store
+*.swp
+*.swo
+*.tmp
+*.bak
+.env
+.env.*
+.idea/
+.vscode/
