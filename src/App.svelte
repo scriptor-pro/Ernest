@@ -465,7 +465,7 @@
   <header class="app-header">
     <div class="app-title">
       <h1>Ernest</h1>
-      <span>Markdown + frontmatter workspace · v0.1.0+0034</span>
+      <span>Markdown + frontmatter workspace · v0.1.0+0037</span>
     </div>
     <div class="toolbar">
       <label>

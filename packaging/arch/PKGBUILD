@@ -1,0 +1,28 @@
+pkgname=ernest
+pkgver=0.1.0
+pkgrel=37
+pkgdesc="Markdown + frontmatter workspace"
+arch=('x86_64')
+url="https://github.com/scriptor-pro/Ernest"
+license=('Apache-2.0')
+depends=('gtk3' 'webkit2gtk-4.1' 'libsoup3')
+makedepends=('nodejs' 'npm' 'rust' 'cargo' 'pkg-config')
+source=("git+https://github.com/scriptor-pro/Ernest.git")
+sha256sums=('SKIP')
+
+build() {
+  cd "$srcdir/Ernest"
+  npm install
+  npm run build:tauri -- --bundles appimage
+}
+
+package() {
+  cd "$srcdir/Ernest"
+  install -Dm755 src-tauri/target/release/bundle/appimage/*.AppImage \
+    "$pkgdir/opt/ernest/Ernest.AppImage"
+  install -Dm644 ernest.desktop "$pkgdir/usr/share/applications/ernest.desktop"
+  install -Dm644 src-tauri/icons/icon.png \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/ernest.png"
+  install -d "$pkgdir/usr/bin"
+  ln -s /opt/ernest/Ernest.AppImage "$pkgdir/usr/bin/ernest"
+}

@@ -11,7 +11,7 @@ fn main() {
             let project_new = MenuItem::with_id(app, "project_new", "New", true, None::<&str>)?;
             let help_item = MenuItem::with_id(app, "help", "Help", true, None::<&str>)?;
             let about_item =
-                MenuItem::with_id(app, "about", "About Ernest v0.1.0+0034", true, None::<&str>)?;
+                MenuItem::with_id(app, "about", "About Ernest v0.1.0+0037", true, None::<&str>)?;
 
             let app_menu = Submenu::with_items(app, "Ernest", true, &[&config_item])?;
             let project_menu =
@@ -43,7 +43,7 @@ Save: Writes the file to disk.";
                 }
                 "about" => {
                     app.dialog()
-                        .message("Ernest v0.1.0+0034\nMarkdown + frontmatter workspace")
+                        .message("Ernest v0.1.0+0037\nMarkdown + frontmatter workspace")
                         .title("About")
                         .blocking_show();
                 }

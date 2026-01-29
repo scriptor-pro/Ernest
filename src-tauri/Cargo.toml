@@ -1,8 +1,9 @@
 [package]
 name = "ernest"
-version = "0.1.0+0034"
+version = "0.1.0+0037"
 description = "Ernest"
 authors = ["you"]
+license = "Apache-2.0"
 edition = "2021"
 
 [build-dependencies]

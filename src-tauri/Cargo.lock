@@ -659,7 +659,7 @@ dependencies = [
 
 [[package]]
 name = "ernest"
-version = "0.1.0+0034"
+version = "0.1.0+0037"
 dependencies = [
  "tauri",
  "tauri-build",
