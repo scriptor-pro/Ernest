@@ -1,6 +1,6 @@
 {
   "name": "ernest",
-  "version": "0.1.0+0033",
+  "version": "0.1.0+0034",
   "type": "module",
   "scripts": {
     "dev": "vite",

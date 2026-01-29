@@ -465,7 +465,7 @@
   <header class="app-header">
     <div class="app-title">
       <h1>Ernest</h1>
-      <span>Markdown + frontmatter workspace · v0.1.0+0033</span>
+      <span>Markdown + frontmatter workspace · v0.1.0+0034</span>
     </div>
     <div class="toolbar">
       <label>
@@ -640,52 +640,54 @@
           </div>
         {:else if projectWizardStep === 2}
           <div class="field">
-            <label>How will this project be published?</label>
-            <label>
-              <input
-                type="radio"
-                name="publishing"
-                value="sftp"
-                bind:group={projectWizardPublishing}
-              />
-              SFTP / FTP
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="publishing"
-                value="git"
-                bind:group={projectWizardPublishing}
-              />
-              Git
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="publishing"
-                value="vercel"
-                bind:group={projectWizardPublishing}
-              />
-              Vercel
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="publishing"
-                value="netlify"
-                bind:group={projectWizardPublishing}
-              />
-              Netlify
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="publishing"
-                value="other"
-                bind:group={projectWizardPublishing}
-              />
-              Other hosting
-            </label>
+            <fieldset class="field">
+              <legend>How will this project be published?</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="publishing"
+                  value="sftp"
+                  bind:group={projectWizardPublishing}
+                />
+                SFTP / FTP
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="publishing"
+                  value="git"
+                  bind:group={projectWizardPublishing}
+                />
+                Git
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="publishing"
+                  value="vercel"
+                  bind:group={projectWizardPublishing}
+                />
+                Vercel
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="publishing"
+                  value="netlify"
+                  bind:group={projectWizardPublishing}
+                />
+                Netlify
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="publishing"
+                  value="other"
+                  bind:group={projectWizardPublishing}
+                />
+                Other hosting
+              </label>
+            </fieldset>
           </div>
         {/if}
 
