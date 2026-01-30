@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
 
-  type ExportTarget = "git" | "ftp";
+  type ExportTarget = "git" | "ftp" | "netlify" | "vercel";
 
   type ExportLog = {
     level: "info" | "warn" | "error";
@@ -48,6 +48,15 @@
     showDetails: boolean;
   };
 
+  type CredentialPrompt = {
+    jobId: string;
+    target: ExportTarget;
+    profile: string;
+    kind: "password" | "token";
+    title: string;
+    message: string;
+  };
+
   export let activeFile: { path: string; name: string } | null = null;
   export let projectPath: string | null = null;
   export let hasTauri = false;
@@ -57,6 +66,10 @@
   let exportError = "";
   let isSubmitting = false;
   let jobs: ExportJob[] = [];
+  let credentialPrompt: CredentialPrompt | null = null;
+  let credentialValue = "";
+  let credentialError = "";
+  let isSavingCredential = false;
 
   const updateJob = (jobId: string, updater: (job: ExportJob) => ExportJob) => {
     jobs = jobs.map((job) => (job.id === jobId ? updater(job) : job));
@@ -158,6 +171,26 @@
           logs: event.payload.response.logs ?? [],
           error: event.payload.response.error ?? null,
         }));
+
+        const errorCode = event.payload.response.error?.code;
+        if (errorCode === "ftp_missing_password" || errorCode === "netlify_missing_token") {
+          const job = jobs.find((entry) => entry.id === event.payload.jobId);
+          if (job) {
+            const isToken = errorCode === "netlify_missing_token";
+            credentialPrompt = {
+              jobId: job.id,
+              target: job.target,
+              profile: job.profile,
+              kind: isToken ? "token" : "password",
+              title: isToken ? "Netlify token required" : "FTP credentials required",
+              message: isToken
+                ? "Enter the Netlify API token. It will be stored in your system keychain."
+                : "Enter the password for this profile. It will be stored in your system keychain.",
+            };
+            credentialValue = "";
+            credentialError = "";
+          }
+        }
       });
     };
 
@@ -168,6 +201,48 @@
       unlistenFinished?.();
     };
   });
+
+  const closeCredentialPrompt = () => {
+    credentialPrompt = null;
+    credentialValue = "";
+    credentialError = "";
+  };
+
+  const saveCredential = async (retry: boolean) => {
+    if (!credentialPrompt) {
+      return;
+    }
+    if (!activeFile) {
+      credentialError = "Select a file to export.";
+      return;
+    }
+    credentialError = "";
+    isSavingCredential = true;
+    try {
+      await invoke("set_credential", {
+        request: {
+          filePath: activeFile.path,
+          target: credentialPrompt.target,
+          profile:
+            credentialPrompt.profile.trim() === ""
+              ? null
+              : credentialPrompt.profile.trim(),
+          kind: credentialPrompt.kind,
+          value: credentialValue,
+        },
+      });
+      closeCredentialPrompt();
+      if (retry) {
+        target = credentialPrompt.target;
+        profile = credentialPrompt.profile;
+        await startExport();
+      }
+    } catch (error) {
+      credentialError = error instanceof Error ? error.message : String(error);
+    } finally {
+      isSavingCredential = false;
+    }
+  };
 </script>
 
 <aside class="panel" aria-label="Export">
@@ -181,6 +256,8 @@
     <select id="export-target" class="focus-ring" bind:value={target}>
       <option value="git">Git</option>
       <option value="ftp">FTP / SFTP</option>
+      <option value="netlify">Netlify</option>
+      <option value="vercel">Vercel</option>
     </select>
   </div>
 
@@ -190,7 +267,13 @@
       id="export-profile"
       class="focus-ring"
       type="text"
-      placeholder={target === "ftp" ? "Required for FTP" : "Optional for Git"}
+      placeholder={
+        target === "ftp"
+          ? "Required for FTP"
+          : target === "git"
+            ? "Optional for Git"
+            : "Not used for this target"
+      }
       bind:value={profile}
     />
     <small>Project: {projectPath ?? "None selected"}</small>
@@ -283,3 +366,46 @@
     </div>
   {/if}
 </aside>
+
+{#if credentialPrompt}
+  <div class="wizard-backdrop" role="dialog" aria-modal="true">
+    <div class="wizard-card">
+      <h2>{credentialPrompt.title}</h2>
+      <p>{credentialPrompt.message}</p>
+
+      <div class="field">
+        <label for="credential-password">
+          {credentialPrompt.kind === "token" ? "API Token" : "Password"}
+        </label>
+        <input
+          id="credential-password"
+          class="focus-ring"
+          type="password"
+          bind:value={credentialValue}
+          placeholder={
+            credentialPrompt.kind === "token" ? "Enter token" : "Enter password"
+          }
+        />
+        <small>
+          Profile: {credentialPrompt.profile || "Default"}
+        </small>
+        {#if credentialError}
+          <small class="wizard-error">{credentialError}</small>
+        {/if}
+      </div>
+
+      <div class="wizard-actions">
+        <button class="focus-ring" on:click={closeCredentialPrompt}>
+          Cancel
+        </button>
+        <button
+          class="focus-ring"
+          on:click={() => saveCredential(true)}
+          disabled={isSavingCredential || credentialValue.trim() === ""}
+        >
+          Save & Retry
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

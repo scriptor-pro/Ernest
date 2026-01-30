@@ -9,6 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
 
+use crate::credentials::{lookup_credential, CredentialKind, CredentialTarget};
+use crate::project::find_project_root;
+
 #[derive(Debug, Deserialize)]
 pub struct ExportConfig {
     pub version: u32,
@@ -190,6 +193,9 @@ pub struct VercelConfig {
     pub project_name: Option<String>,
 
     #[serde(default)]
+    pub deploy_hook_url: Option<String>,
+
+    #[serde(default)]
     pub environment: VercelEnvironment,
 }
 
@@ -237,6 +243,9 @@ impl ExportConfig {
             if vercel.enabled && vercel.project_name.is_none() {
                 return Err(ConfigError::InvalidVercelConfig);
             }
+            if vercel.enabled && vercel.deploy_hook_url.is_none() {
+                return Err(ConfigError::InvalidVercelConfig);
+            }
         }
 
         if let Some(ftp) = &self.ftp {
@@ -256,6 +265,8 @@ impl ExportConfig {
 pub enum ExportTarget {
     Git,
     Ftp,
+    Netlify,
+    Vercel,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -286,6 +297,9 @@ pub enum ExportErrorCode {
     FtpFailed,
     FtpMissingUsername,
     FtpMissingPassword,
+    NetlifyMissingToken,
+    NetlifyFailed,
+    VercelFailed,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -500,6 +514,8 @@ fn run_export(
         ExportTarget::Ftp => {
             run_ftp_export(app, job_id, &file_path, &config, request, cancel, logs)
         }
+        ExportTarget::Netlify => run_netlify_export(app, job_id, &config, request, cancel, logs),
+        ExportTarget::Vercel => run_vercel_export(app, job_id, &config, request, cancel, logs),
     }
 }
 
@@ -779,6 +795,23 @@ fn run_ftp_export(
         return cancelled_response("Export cancelled", &mut logs);
     }
 
+    let stored_password = match lookup_credential(
+        &request.file_path,
+        CredentialTarget::Ftp,
+        request.profile.as_deref(),
+        CredentialKind::Password,
+    ) {
+        Ok(password) => password,
+        Err(error) => {
+            return error_response(
+                ExportErrorCode::FtpFailed,
+                "Unable to access credential storage",
+                Some(error),
+                logs,
+            )
+        }
+    };
+
     let username = resolve_username(&resolved.username);
     if username.is_empty() {
         return error_response(
@@ -817,6 +850,7 @@ fn run_ftp_export(
                 &resolved.host,
                 resolved.port,
                 &username,
+                stored_password.as_deref(),
                 total_bytes,
                 cancel,
             ) {
@@ -830,6 +864,14 @@ fn run_ftp_export(
                     if error == "export_cancelled" {
                         return cancelled_response("Export cancelled", &mut logs);
                     }
+                    if error == "ssh_auth_failed" && stored_password.is_none() {
+                        return error_response(
+                            ExportErrorCode::FtpMissingPassword,
+                            "SFTP password missing (set in app or use SSH agent)",
+                            None,
+                            logs,
+                        );
+                    }
                     error_response(
                         ExportErrorCode::FtpFailed,
                         "SFTP export failed",
@@ -840,11 +882,13 @@ fn run_ftp_export(
             }
         }
         FtpProtocol::Ftp => {
-            let password = std::env::var("ERNEST_FTP_PASSWORD").unwrap_or_default();
+            let password = stored_password
+                .or_else(|| std::env::var("ERNEST_FTP_PASSWORD").ok())
+                .unwrap_or_default();
             if password.is_empty() {
                 return error_response(
                     ExportErrorCode::FtpMissingPassword,
-                    "FTP password missing (set ERNEST_FTP_PASSWORD)",
+                    "FTP password missing (set in app)",
                     None,
                     logs,
                 );
@@ -875,6 +919,204 @@ fn run_ftp_export(
     }
 }
 
+fn run_netlify_export(
+    _app: &AppHandle,
+    _job_id: &str,
+    config: &ExportConfig,
+    request: &ExportRequest,
+    cancel: &AtomicBool,
+    mut logs: Vec<ExportLog>,
+) -> ExportResponse {
+    let netlify_config = match &config.netlify {
+        Some(netlify) if netlify.enabled => netlify,
+        _ => {
+            return error_response(
+                ExportErrorCode::TargetDisabled,
+                "Netlify export is disabled",
+                None,
+                logs,
+            )
+        }
+    };
+
+    if !netlify_config.trigger_deploy {
+        return error_response(
+            ExportErrorCode::TargetDisabled,
+            "Netlify deploy trigger disabled",
+            None,
+            logs,
+        );
+    }
+
+    if cancel.load(Ordering::SeqCst) {
+        return cancelled_response("Export cancelled", &mut logs);
+    }
+
+    let site_id = match &netlify_config.site_id {
+        Some(site_id) => site_id.trim(),
+        None => {
+            return error_response(
+                ExportErrorCode::ConfigInvalid,
+                "Invalid Netlify configuration",
+                Some("site_id missing".to_string()),
+                logs,
+            )
+        }
+    };
+
+    let token = match lookup_credential(
+        &request.file_path,
+        CredentialTarget::Netlify,
+        request.profile.as_deref(),
+        CredentialKind::Token,
+    ) {
+        Ok(Some(token)) => token,
+        Ok(None) => {
+            return error_response(
+                ExportErrorCode::NetlifyMissingToken,
+                "Netlify token missing (set in app)",
+                None,
+                logs,
+            )
+        }
+        Err(error) => {
+            return error_response(
+                ExportErrorCode::NetlifyFailed,
+                "Unable to access credential storage",
+                Some(error),
+                logs,
+            )
+        }
+    };
+
+    if cancel.load(Ordering::SeqCst) {
+        return cancelled_response("Export cancelled", &mut logs);
+    }
+
+    let url = format!("https://api.netlify.com/api/v1/sites/{}/builds", site_id);
+    log_info(
+        &mut logs,
+        "Triggering Netlify deploy",
+        Some(site_id.to_string()),
+    );
+
+    let client = reqwest::blocking::Client::new();
+    let response = client.post(&url).bearer_auth(token).send();
+
+    match response {
+        Ok(response) => {
+            if response.status().is_success() {
+                ExportResponse {
+                    ok: true,
+                    summary: "Netlify deploy triggered".to_string(),
+                    logs,
+                    error: None,
+                }
+            } else {
+                let status = response.status().to_string();
+                let detail = response.text().ok().filter(|text| !text.trim().is_empty());
+                error_response(
+                    ExportErrorCode::NetlifyFailed,
+                    "Netlify deploy failed",
+                    Some(detail.unwrap_or(status)),
+                    logs,
+                )
+            }
+        }
+        Err(error) => error_response(
+            ExportErrorCode::NetlifyFailed,
+            "Netlify deploy failed",
+            Some(error.to_string()),
+            logs,
+        ),
+    }
+}
+
+fn run_vercel_export(
+    _app: &AppHandle,
+    _job_id: &str,
+    config: &ExportConfig,
+    _request: &ExportRequest,
+    cancel: &AtomicBool,
+    mut logs: Vec<ExportLog>,
+) -> ExportResponse {
+    let vercel_config = match &config.vercel {
+        Some(vercel) if vercel.enabled => vercel,
+        _ => {
+            return error_response(
+                ExportErrorCode::TargetDisabled,
+                "Vercel export is disabled",
+                None,
+                logs,
+            )
+        }
+    };
+
+    let deploy_hook_url = match &vercel_config.deploy_hook_url {
+        Some(url) if !url.trim().is_empty() => url.trim(),
+        _ => {
+            return error_response(
+                ExportErrorCode::ConfigInvalid,
+                "Invalid Vercel configuration",
+                Some("deploy_hook_url missing".to_string()),
+                logs,
+            )
+        }
+    };
+
+    if cancel.load(Ordering::SeqCst) {
+        return cancelled_response("Export cancelled", &mut logs);
+    }
+
+    let env = match vercel_config.environment {
+        VercelEnvironment::Production => "production",
+        VercelEnvironment::Preview => "preview",
+    };
+    let project_name = vercel_config
+        .project_name
+        .clone()
+        .unwrap_or_else(|| "vercel".to_string());
+    log_info(
+        &mut logs,
+        "Triggering Vercel deploy",
+        Some(format!("{} ({})", project_name, env)),
+    );
+
+    let client = reqwest::blocking::Client::new();
+    let response = client
+        .post(deploy_hook_url)
+        .header("X-Ernest-Environment", env)
+        .send();
+
+    match response {
+        Ok(response) => {
+            if response.status().is_success() {
+                ExportResponse {
+                    ok: true,
+                    summary: "Vercel deploy triggered".to_string(),
+                    logs,
+                    error: None,
+                }
+            } else {
+                let status = response.status().to_string();
+                let detail = response.text().ok().filter(|text| !text.trim().is_empty());
+                error_response(
+                    ExportErrorCode::VercelFailed,
+                    "Vercel deploy failed",
+                    Some(detail.unwrap_or(status)),
+                    logs,
+                )
+            }
+        }
+        Err(error) => error_response(
+            ExportErrorCode::VercelFailed,
+            "Vercel deploy failed",
+            Some(error.to_string()),
+            logs,
+        ),
+    }
+}
+
 fn upload_sftp(
     app: &AppHandle,
     job_id: &str,
@@ -883,6 +1125,7 @@ fn upload_sftp(
     host: &str,
     port: u16,
     username: &str,
+    password: Option<&str>,
     total_bytes: u64,
     cancel: &AtomicBool,
 ) -> Result<(), String> {
@@ -890,11 +1133,16 @@ fn upload_sftp(
     let mut session = ssh2::Session::new().map_err(|error| error.to_string())?;
     session.set_tcp_stream(tcp);
     session.handshake().map_err(|error| error.to_string())?;
-    session
-        .userauth_agent(username)
-        .map_err(|error| error.to_string())?;
+    let _ = session.userauth_agent(username);
     if !session.authenticated() {
-        return Err("SSH authentication failed".to_string());
+        if let Some(password) = password {
+            session
+                .userauth_password(username, password)
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    if !session.authenticated() {
+        return Err("ssh_auth_failed".to_string());
     }
 
     let sftp = session.sftp().map_err(|error| error.to_string())?;
@@ -988,21 +1236,6 @@ fn resolve_path(project_root: &Path, repo_path: &str) -> PathBuf {
     } else {
         project_root.join(path)
     }
-}
-
-fn find_project_root(file_path: &Path) -> Option<PathBuf> {
-    let start = if file_path.is_dir() {
-        file_path
-    } else {
-        file_path.parent()?
-    };
-
-    for ancestor in start.ancestors() {
-        if ancestor.join(".export.toml").exists() {
-            return Some(ancestor.to_path_buf());
-        }
-    }
-    None
 }
 
 fn run_git_command(repo_path: &Path, args: &[&str]) -> Result<String, String> {

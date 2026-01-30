@@ -1,4 +1,6 @@
+mod credentials;
 mod export;
+mod project;
 
 fn main() {
     tauri::Builder::default()
@@ -57,6 +59,9 @@ Save: Writes the file to disk.";
             export::export_file_async,
             export::cancel_export,
             export::cleanup_export,
+            credentials::get_credential,
+            credentials::set_credential,
+            credentials::delete_credential,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

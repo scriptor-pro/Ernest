@@ -1,6 +1,6 @@
 {
   "productName": "Ernest",
-  "version": "0.1.0+0037",
+  "version": "0.1.0+0038",
   "identifier": "com.ernest.app",
   "build": {
     "beforeDevCommand": "npm run dev",

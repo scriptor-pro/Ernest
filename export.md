@@ -81,6 +81,9 @@ Secrets must be handled by the host system:
 - environment variables (if chosen by user),
 - secure OS facilities.
 
+The app provides **in-app credential prompts** and stores secrets in the
+**OS keychain** (per project + profile) when available.
+
 ### 4.3 Example `.export.toml` (v1 corrected)
 
 ```toml
@@ -121,9 +124,12 @@ enabled = false
 site_id = "your-site-id"
 trigger_deploy = true
 
+# Netlify token is stored in the OS keychain (set in-app)
+
 [vercel]
 enabled = false
 project_name = "example-project"
+deploy_hook_url = "https://api.vercel.com/v1/integrations/deploy/your-hook"
 environment = "production"
 ```
 
@@ -545,7 +551,7 @@ impl ExportConfig {
 
 ---
 
-## 11. UI integration (React panel)
+## 11. UI integration (Svelte panel)
 
 UI listens to:
 - `export:progress`
@@ -557,6 +563,7 @@ UI provides:
 - per-job cancel button while running
 - details panel with logs and optional technical details
 - cleanup action after completion
+- credential prompts when required (passwords/tokens stored in OS keychain)
 
 ---
 

@@ -1,6 +1,6 @@
 [package]
 name = "ernest"
-version = "0.1.0+0037"
+version = "0.1.0+0038"
 description = "Ernest"
 authors = ["you"]
 license = "Apache-2.0"
@@ -19,6 +19,10 @@ thiserror = "1.0"
 uuid = { version = "1.6", features = ["v4"] }
 ssh2 = "0.9"
 suppaftp = "6.0"
+keyring = "2.3"
+sha2 = "0.10"
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 
 [features]
 default = ["custom-protocol"]
