@@ -3,6 +3,7 @@
   import Tabs from "./components/Tabs.svelte";
   import MarkdownEditor from "./components/MarkdownEditor.svelte";
   import MetadataPanel from "./components/MetadataPanel.svelte";
+  import ExportPanel from "./components/ExportPanel.svelte";
   import { getSsgPlugin } from "./lib/ssg";
   import type {
     FrontmatterFormat,
@@ -521,12 +522,15 @@
       <Tabs {activeFile} {isDirty} {isNewFile} />
       <MarkdownEditor bind:content {activeFile} {isDirty} {isNewFile} />
     </section>
-    <MetadataPanel
-      schema={plugin.getSchema()}
-      {formData}
-      {issues}
-      {updateField}
-    />
+    <section class="side-stack">
+      <MetadataPanel
+        schema={plugin.getSchema()}
+        {formData}
+        {issues}
+        {updateField}
+      />
+      <ExportPanel {activeFile} {projectPath} {hasTauri} />
+    </section>
   </main>
 
   {#if showWizard}

@@ -1,7 +1,10 @@
+mod export;
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .manage(export::ExportJobs::default())
         .setup(|app| {
             use tauri::menu::{Menu, MenuItem, Submenu};
 
@@ -50,6 +53,11 @@ Save: Writes the file to disk.";
                 _ => {}
             }
         })
+        .invoke_handler(tauri::generate_handler![
+            export::export_file_async,
+            export::cancel_export,
+            export::cleanup_export,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -254,6 +254,12 @@ a {
   gap: 12px;
 }
 
+.side-stack {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
 .tab-strip {
   display: flex;
   gap: 8px;
@@ -415,6 +421,115 @@ a {
 
 .wizard-error {
   color: var(--error);
+}
+
+.export-button {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.export-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.export-error {
+  margin-top: 8px;
+  color: var(--error);
+  font-size: 0.85rem;
+}
+
+.export-jobs {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.export-job {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel-strong);
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.export-job-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.export-job-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.export-job-summary {
+  font-size: 0.85rem;
+}
+
+.export-job-error {
+  color: var(--error);
+  font-size: 0.85rem;
+}
+
+.export-job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.export-job-actions button {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.export-job-logs {
+  display: grid;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.export-log {
+  background: rgba(92, 92, 92, 0.08);
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  display: grid;
+  gap: 4px;
+}
+
+.export-log.error {
+  background: rgba(180, 42, 42, 0.14);
+  color: var(--error);
+}
+
+.export-log.warn {
+  background: rgba(177, 95, 16, 0.16);
+  color: var(--warning);
+}
+
+.progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(92, 92, 92, 0.14);
+  overflow: hidden;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
 }
 
 @keyframes fadeIn {

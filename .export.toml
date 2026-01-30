@@ -1,0 +1,10 @@
+version = 1
+
+[git]
+enabled = true
+mode = "add-only"
+checks = ["repo", "status"]
+
+[ftp]
+enabled = false
+protocol = "sftp"
