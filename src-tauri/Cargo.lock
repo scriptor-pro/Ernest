@@ -938,7 +938,7 @@ dependencies = [
 
 [[package]]
 name = "ernest"
-version = "0.1.0+0038"
+version = "0.1.0+0041"
 dependencies = [
  "hex",
  "keyring",

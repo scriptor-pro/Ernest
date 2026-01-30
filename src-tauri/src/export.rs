@@ -55,6 +55,15 @@ pub struct GitConfig {
     #[serde(default)]
     pub mode: Option<GitMode>,
 
+    #[serde(default)]
+    pub push: Option<bool>,
+
+    #[serde(default)]
+    pub remote: Option<String>,
+
+    #[serde(default)]
+    pub branch: Option<String>,
+
     #[serde(default = "default_git_checks")]
     pub checks: Vec<GitCheck>,
 
@@ -80,6 +89,15 @@ pub struct GitProfile {
 
     #[serde(default)]
     pub checks: Option<Vec<GitCheck>>,
+
+    #[serde(default)]
+    pub push: Option<bool>,
+
+    #[serde(default)]
+    pub remote: Option<String>,
+
+    #[serde(default)]
+    pub branch: Option<String>,
 }
 
 #[derive(Debug)]
@@ -87,6 +105,9 @@ pub struct ResolvedGitConfig {
     pub repo_path: String,
     pub mode: GitMode,
     pub checks: Vec<GitCheck>,
+    pub push: bool,
+    pub remote: String,
+    pub branch: Option<String>,
 }
 
 impl GitConfig {
@@ -104,10 +125,24 @@ impl GitConfig {
             .and_then(|p| p.repo_path.clone())
             .unwrap_or_else(|| ".".into());
 
+        let push = profile.and_then(|p| p.push).or(self.push).unwrap_or(false);
+
+        let remote = profile
+            .and_then(|p| p.remote.clone())
+            .or(self.remote.clone())
+            .unwrap_or_else(|| "origin".to_string());
+
+        let branch = profile
+            .and_then(|p| p.branch.clone())
+            .or(self.branch.clone());
+
         ResolvedGitConfig {
             repo_path,
             mode,
             checks,
+            push,
+            remote,
+            branch,
         }
     }
 }
@@ -294,6 +329,8 @@ pub enum ExportErrorCode {
     GitRepoMissing,
     GitDirty,
     GitFailed,
+    GitPushFailed,
+    GitMissingToken,
     FtpFailed,
     FtpMissingUsername,
     FtpMissingPassword,
@@ -709,6 +746,102 @@ fn run_git_export(
                 return error_response(
                     ExportErrorCode::GitFailed,
                     "git commit failed",
+                    Some(error),
+                    logs,
+                );
+            }
+        }
+    }
+
+    if resolved.push {
+        if cancel.load(Ordering::SeqCst) {
+            return cancelled_response("Export cancelled", &mut logs);
+        }
+
+        let branch = match resolved.branch.clone() {
+            Some(branch) if !branch.trim().is_empty() => branch,
+            _ => match run_git_command(&repo_root, &["rev-parse", "--abbrev-ref", "HEAD"]) {
+                Ok(output) => output.trim().to_string(),
+                Err(error) => {
+                    return error_response(
+                        ExportErrorCode::GitFailed,
+                        "Unable to resolve current branch",
+                        Some(error),
+                        logs,
+                    )
+                }
+            },
+        };
+
+        let remote = resolved.remote.clone();
+        log_info(
+            &mut logs,
+            "Git push",
+            Some(format!("{} {}", remote, branch)),
+        );
+
+        let remote_url = match run_git_command(&repo_root, &["remote", "get-url", &remote]) {
+            Ok(output) => output.trim().to_string(),
+            Err(error) => {
+                return error_response(
+                    ExportErrorCode::GitPushFailed,
+                    "Unable to read git remote",
+                    Some(error),
+                    logs,
+                )
+            }
+        };
+
+        let is_https = remote_url.starts_with("http://") || remote_url.starts_with("https://");
+        if is_https {
+            let token = match lookup_credential(
+                &request.file_path,
+                CredentialTarget::Git,
+                request.profile.as_deref(),
+                CredentialKind::Token,
+            ) {
+                Ok(Some(token)) => token,
+                Ok(None) => {
+                    return error_response(
+                        ExportErrorCode::GitMissingToken,
+                        "Git token missing (set in app)",
+                        None,
+                        logs,
+                    )
+                }
+                Err(error) => {
+                    return error_response(
+                        ExportErrorCode::GitPushFailed,
+                        "Unable to access credential storage",
+                        Some(error),
+                        logs,
+                    )
+                }
+            };
+
+            let header = format!("AUTHORIZATION: bearer {}", token.trim());
+            if let Err(error) = run_git_command(
+                &repo_root,
+                &[
+                    "-c",
+                    &format!("http.extraheader={}", header),
+                    "push",
+                    &remote,
+                    &branch,
+                ],
+            ) {
+                return error_response(
+                    ExportErrorCode::GitPushFailed,
+                    "git push failed",
+                    Some(error),
+                    logs,
+                );
+            }
+        } else {
+            if let Err(error) = run_git_command(&repo_root, &["push", &remote, &branch]) {
+                return error_response(
+                    ExportErrorCode::GitPushFailed,
+                    "git push failed",
                     Some(error),
                     logs,
                 );

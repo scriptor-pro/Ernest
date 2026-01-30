@@ -372,6 +372,8 @@ a {
   box-shadow: var(--shadow);
   display: grid;
   gap: 14px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .wizard-card h2 {
@@ -444,6 +446,27 @@ a {
   font-size: 0.85rem;
 }
 
+.export-config {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: rgba(255, 250, 242, 0.6);
+}
+
+.export-config-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.export-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .export-jobs {
   margin-top: 12px;
   display: grid;
@@ -492,6 +515,23 @@ a {
   background: var(--panel);
   cursor: pointer;
   font-size: 0.82rem;
+}
+
+.export-profile {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-strong);
+}
+
+.export-profile-toggle {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.82rem;
+  color: var(--muted);
 }
 
 .export-job-logs {

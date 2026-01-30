@@ -12,15 +12,15 @@
     "fs:default",
     {
       "identifier": "fs:allow-read-dir",
-      "allow": [{ "path": "/**" }]
+      "allow": [{ "path": "$HOME/**" }, { "path": "/home/**" }]
     },
     {
       "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "/**" }]
+      "allow": [{ "path": "$HOME/**" }, { "path": "/home/**" }]
     },
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "/**" }]
+      "allow": [{ "path": "$HOME/**" }, { "path": "/home/**" }]
     }
   ]
 }

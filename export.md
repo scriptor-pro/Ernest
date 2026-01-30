@@ -93,6 +93,9 @@ version = 1
 enabled = true
 mode = "add-only"
 checks = ["repo", "status"]
+push = false
+remote = "origin"
+branch = "main"
 
 [git.profiles.docs]
 enabled = false
@@ -104,6 +107,9 @@ enabled = false
 repo_path = "../blog"
 mode = "add-and-commit"
 checks = ["repo", "status"]
+push = true
+remote = "origin"
+branch = "main"
 
 [ftp]
 enabled = false
@@ -220,6 +226,15 @@ pub struct GitConfig {
     #[serde(default)]
     pub mode: Option<GitMode>,
 
+    #[serde(default)]
+    pub push: Option<bool>,
+
+    #[serde(default)]
+    pub remote: Option<String>,
+
+    #[serde(default)]
+    pub branch: Option<String>,
+
     #[serde(default = "default_git_checks")]
     pub checks: Vec<GitCheck>,
 
@@ -247,6 +262,15 @@ pub struct GitProfile {
 
     #[serde(default)]
     pub checks: Option<Vec<GitCheck>>,
+
+    #[serde(default)]
+    pub push: Option<bool>,
+
+    #[serde(default)]
+    pub remote: Option<String>,
+
+    #[serde(default)]
+    pub branch: Option<String>,
 }
 
 #[derive(Debug)]
@@ -254,6 +278,9 @@ pub struct ResolvedGitConfig {
     pub repo_path: String,
     pub mode: GitMode,
     pub checks: Vec<GitCheck>,
+    pub push: bool,
+    pub remote: String,
+    pub branch: Option<String>,
 }
 
 impl GitConfig {
