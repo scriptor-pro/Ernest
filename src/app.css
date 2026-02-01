@@ -11,8 +11,8 @@
   --ink: #1f1f1f;
   --muted: #5c5c5c;
   --border: #d6cfc2;
-  --accent: #c96a1b;
-  --accent-strong: #9a4f10;
+  --accent: #002fa7;
+  --accent-strong: #00247d;
   --success: #1b6f4a;
   --warning: #b15f10;
   --error: #b42a2a;
@@ -113,7 +113,7 @@ a {
 
 .toolbar button:not(:disabled):hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(201, 106, 27, 0.25);
+  box-shadow: 0 8px 20px rgba(0, 47, 167, 0.25);
 }
 
 .toolbar-error {
@@ -143,7 +143,7 @@ a {
 
 .file-item button.active {
   border-color: var(--accent);
-  background: rgba(201, 106, 27, 0.08);
+  background: rgba(0, 47, 167, 0.08);
 }
 
 .app-grid {
@@ -152,6 +152,18 @@ a {
   grid-template-columns: 240px minmax(0, 1fr) 320px;
   gap: 16px;
   padding: 18px 20px 24px;
+}
+
+.app-grid.no-explorer {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.app-grid.no-metadata {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.app-grid.no-explorer.no-metadata {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .panel {
@@ -208,6 +220,11 @@ a {
 }
 
 .field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.field-label {
   font-size: 0.85rem;
   font-weight: 600;
 }
@@ -288,8 +305,11 @@ a {
 
 .editor-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
 }
 
 .editor-toolbar button {
@@ -305,6 +325,7 @@ a {
   gap: 6px;
   min-width: 36px;
   min-height: 36px;
+  flex: 0 0 auto;
 }
 
 .icon-button svg {
@@ -419,6 +440,26 @@ a {
   font-size: 0.85rem;
   font-weight: 600;
   margin-bottom: 6px;
+}
+
+.publish-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.publish-list {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.publish-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
 }
 
 .wizard-error {

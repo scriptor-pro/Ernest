@@ -9,6 +9,7 @@ src-tauri/target-release/
 *.swo
 *.tmp
 *.bak
+01fev2026-log.txt
 .env
 .env.*
 .idea/
