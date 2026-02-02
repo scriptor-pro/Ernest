@@ -849,7 +849,7 @@
           <small>Comma-separated: repo, status, clean</small>
         </div>
         <div class="field">
-          <label>Git profiles</label>
+          <div class="field-label">Git profiles</div>
           {#each configGitProfiles as profile, index}
             <div class="export-profile">
               <input
@@ -918,7 +918,7 @@
           </select>
         </div>
         <div class="field">
-          <label>FTP profiles</label>
+          <div class="field-label">FTP profiles</div>
           {#each configFtpProfiles as profile, index}
             <div class="export-profile">
               <input
