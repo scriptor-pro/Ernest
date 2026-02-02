@@ -1023,6 +1023,14 @@
     }
   };
 
+  const wizardNext = () => {
+    wizardStep = Math.min(2, wizardStep + 1);
+  };
+
+  const wizardBack = () => {
+    wizardStep = Math.max(1, wizardStep - 1);
+  };
+
   const handleAutosaveIntervalChange = (event: Event) => {
     const target = event.currentTarget as HTMLSelectElement | null;
     if (!target) {
@@ -1128,20 +1136,56 @@
         <p>Let’s prepare your workspace in two quick steps.</p>
 
         {#if wizardStep === 1}
-          <div class="field">
-            <label for="wizard-ssg">Which SSG will you write for?</label>
-            <select
-              id="wizard-ssg"
-              class="focus-ring"
-              bind:value={wizardSsg}
-            >
-              <option value="eleventy">Eleventy</option>
-              <option value="hugo">Hugo</option>
-              <option value="jekyll">Jekyll</option>
-              <option value="gatsby">Gatsby</option>
-              <option value="astro">Astro</option>
-            </select>
+          <fieldset class="field">
+            <legend>Which SSG will you write for?</legend>
+            <div class="radio-group" role="radiogroup" aria-label="Select SSG for wizard">
+              <label class="radio-label">
+                <input
+                  type="radio"
+                name="wizard-ssg"
+                bind:group={wizardSsg}
+                value="eleventy"
+              />
+              <span>Eleventy</span>
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="wizard-ssg"
+                bind:group={wizardSsg}
+                value="hugo"
+              />
+              <span>Hugo</span>
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="wizard-ssg"
+                bind:group={wizardSsg}
+                value="jekyll"
+              />
+              <span>Jekyll</span>
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="wizard-ssg"
+                bind:group={wizardSsg}
+                value="gatsby"
+              />
+              <span>Gatsby</span>
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="wizard-ssg"
+                bind:group={wizardSsg}
+                value="astro"
+              />
+              <span>Astro</span>
+            </label>
           </div>
+        </fieldset>
         {:else if wizardStep === 2}
           <div class="field">
             <label for="wizard-folder">Where should Ernest save your Markdown files?</label>
@@ -1163,23 +1207,26 @@
         {/if}
 
         <div class="wizard-actions">
-          <button class="focus-ring" on:click={skipWizard}>Skip</button>
+          <button type="button" class="focus-ring" on:click={skipWizard}>Skip</button>
           <button
+            type="button"
             class="focus-ring"
-            on:click={() => (wizardStep = Math.max(1, wizardStep - 1))}
+            on:click={wizardBack}
             disabled={wizardStep === 1}
           >
             Back
           </button>
           {#if wizardStep < 2}
             <button
+              type="button"
               class="focus-ring"
-              on:click={() => (wizardStep = wizardStep + 1)}
+              on:click={wizardNext}
             >
               Next
             </button>
           {:else}
             <button
+              type="button"
               class="focus-ring"
               on:click={completeWizard}
               disabled={!wizardFolder}
@@ -1197,20 +1244,56 @@
       <div class="wizard-card">
         <h2>New project</h2>
         <p>Set up a new workspace.</p>
-        <div class="field">
-          <label for="project-ssg">Which SSG will you use?</label>
-          <select
-            id="project-ssg"
-            class="focus-ring"
-            bind:value={projectWizardSsg}
-          >
-            <option value="eleventy">Eleventy</option>
-            <option value="hugo">Hugo</option>
-            <option value="jekyll">Jekyll</option>
-            <option value="gatsby">Gatsby</option>
-            <option value="astro">Astro</option>
-          </select>
-        </div>
+        <fieldset class="field">
+          <legend>Which SSG will you use?</legend>
+          <div class="radio-group" role="radiogroup" aria-label="Select SSG for project wizard">
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="project-ssg"
+                bind:group={projectWizardSsg}
+                value="eleventy"
+              />
+              <span>Eleventy</span>
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="project-ssg"
+                bind:group={projectWizardSsg}
+                value="hugo"
+              />
+              <span>Hugo</span>
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="project-ssg"
+                bind:group={projectWizardSsg}
+                value="jekyll"
+              />
+              <span>Jekyll</span>
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="project-ssg"
+                bind:group={projectWizardSsg}
+                value="gatsby"
+              />
+              <span>Gatsby</span>
+            </label>
+            <label class="radio-label">
+              <input
+                type="radio"
+                name="project-ssg"
+                bind:group={projectWizardSsg}
+                value="astro"
+              />
+              <span>Astro</span>
+            </label>
+          </div>
+        </fieldset>
         <div class="field">
           <label for="project-folder">Where should Ernest write your content?</label>
           <input

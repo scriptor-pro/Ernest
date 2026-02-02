@@ -2,7 +2,7 @@
 name = "ernest"
 version = "0.2.0+0003"
 description = "Ernest"
-authors = ["you"]
+authors = ["Baudouin <bvh@etik.com>"]
 license = "Apache-2.0"
 edition = "2021"
 
