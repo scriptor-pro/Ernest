@@ -89,23 +89,6 @@
   let detectionChoice: SSGId | null = null;
   let detectionConflict = false;
   let canFinish = false;
-  let wasOpen = false;
-
-  $: if (open && !wasOpen) {
-    language = "en";
-    wizardStep = 0;
-    wizardSsg = defaultSsg;
-    wizardFolder = "";
-    hasMarkdown = false;
-    folderError = "";
-    detectionError = "";
-    detectedSsgs = [];
-    detectionChoice = null;
-    detectionConflict = false;
-    canFinish = false;
-  }
-
-  $: wasOpen = open;
 
   $: {
     const requiresDetectedChoice = detectedSsgs.length > 1 && detectionChoice === null;
