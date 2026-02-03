@@ -1,6 +1,6 @@
 [package]
 name = "ernest"
-version = "0.2.0+0003"
+version = "0.2.2+0005"
 description = "Ernest"
 authors = ["Baudouin <bvh@etik.com>"]
 license = "Apache-2.0"

@@ -188,7 +188,7 @@ fn main() {
             match event.id().as_ref() {
                 "app_about" => {
                     app.dialog()
-                        .message("Ernest v0.2.0+0003\nMarkdown + frontmatter workspace")
+                        .message("Ernest v0.2.2+0005\nMarkdown + frontmatter workspace")
                         .title("About")
                         .blocking_show();
                 }

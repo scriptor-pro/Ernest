@@ -10,6 +10,7 @@ src-tauri/target-release/
 *.tmp
 *.bak
 01fev2026-log.txt
+.tsbuildinfo
 .env
 .env.*
 .idea/

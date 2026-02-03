@@ -4,6 +4,16 @@
   import MarkdownEditor from "./components/MarkdownEditor.svelte";
   import MetadataPanel from "./components/MetadataPanel.svelte";
   import ExportPanel from "./components/ExportPanel.svelte";
+  import OnboardingWizard from "./components/OnboardingWizard.svelte";
+  import ProjectWizard from "./components/ProjectWizard.svelte";
+  import PublishModal from "./components/PublishModal.svelte";
+  import DeployModal from "./components/DeployModal.svelte";
+  import FrontmatterChoiceModal from "./components/FrontmatterChoiceModal.svelte";
+  import eleventyTemplate from "./templates/wizard/eleventy.md?raw";
+  import hugoTemplate from "./templates/wizard/hugo.md?raw";
+  import jekyllTemplate from "./templates/wizard/jekyll.md?raw";
+  import gatsbyTemplate from "./templates/wizard/gatsby.md?raw";
+  import astroTemplate from "./templates/wizard/astro.md?raw";
   import { getSsgPlugin } from "./lib/ssg";
   import type {
     FrontmatterFormat,
@@ -43,14 +53,7 @@
   let isNewFile = true;
   let saveError = "";
   let showWizard = true;
-  let wizardStep = 1;
-  let wizardSsg: SSGId = selectedSsgId;
-  let wizardFolder: string | null = null;
-  let wizardError = "";
   let showProjectWizard = false;
-  let projectWizardSsg: SSGId = selectedSsgId;
-  let projectWizardFolder: string | null = null;
-  let projectWizardError = "";
   let autosaveEnabled = false;
   let autosaveIntervalSeconds = 30;
   let autosaveTimer: ReturnType<typeof setInterval> | null = null;
@@ -64,14 +67,9 @@
   let showToolbar = true;
   let showPublishModal = false;
   let showDeployModal = false;
-  let publishSelection: Record<string, boolean> = {};
   let publishOutputDir = "_publish";
   let deployRemote = "";
   let deployBranch = "main";
-  let publishStatus = "";
-  let deployStatus = "";
-  let isPublishing = false;
-  let isDeploying = false;
 
   type PublishResponse = {
     ok: boolean;
@@ -87,6 +85,22 @@
   let lastDerivedTitle = "";
   const hasTauri =
     typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+  const wizardTemplateFor = (ssg: SSGId) => {
+    switch (ssg) {
+      case "hugo":
+        return hugoTemplate;
+      case "jekyll":
+        return jekyllTemplate;
+      case "gatsby":
+        return gatsbyTemplate;
+      case "astro":
+        return astroTemplate;
+      case "eleventy":
+      default:
+        return eleventyTemplate;
+    }
+  };
 
   $: plugin = getSsgPlugin(selectedSsgId);
   $: if (plugin.id !== lastSsgId) {
@@ -195,14 +209,37 @@
   $: isDirty = isNewFile || content !== originalContent;
 
   onMount(() => {
-    try {
-      const stored = localStorage.getItem("ernest_onboarding_done");
-      if (stored === "true") {
+    const bootstrapWizard = async () => {
+      if (!hasTauri) {
         showWizard = false;
+        return;
       }
-    } catch {
+      let storedPath: string | null = null;
+      try {
+        storedPath =
+          localStorage.getItem("ernest_last_project_path") ||
+          localStorage.getItem("ernest_project_path");
+      } catch {
+        storedPath = null;
+      }
+      if (!storedPath) {
+        showWizard = true;
+        return;
+      }
+      const config = await loadWizardConfig(storedPath);
+      if (!config) {
+        showWizard = true;
+        return;
+      }
+      selectedSsgId = config.ssg;
+      format = config.frontmatterFormat;
+      projectPath = config.contentRoot;
+      setLastProjectPath(config.contentRoot);
+      await loadProjectConfig(config.contentRoot);
+      await readMarkdownFiles(config.contentRoot);
       showWizard = false;
-    }
+    };
+    void bootstrapWizard();
 
     try {
       const storedAutosave = localStorage.getItem("ernest_autosave");
@@ -305,7 +342,7 @@
         showToolbar = !showToolbar;
       });
       unlistenPreferences = await listen("app:preferences", () => {
-        notify("Preferences are not available yet.");
+        showWizard = true;
       });
       unlistenUpdates = await listen("app:updates", () => {
         notify("Update checks are not available yet.");
@@ -385,11 +422,75 @@
   }
 
   const configPathFor = (root: string) => `${root}/.mdfrontmatter.json`;
+  const wizardConfigPathFor = (root: string) => `${root}/.ernest.json`;
+
+  type WizardConfig = {
+    version: number;
+    ssg: SSGId;
+    contentRoot: string;
+    frontmatterFormat: FrontmatterFormat;
+  };
+
+  const writeWizardConfig = async (
+    root: string,
+    ssg: SSGId,
+    frontmatterFormat: FrontmatterFormat,
+  ) => {
+    if (!hasTauri) {
+      return;
+    }
+    const payload: WizardConfig = {
+      version: 1,
+      ssg,
+      contentRoot: root,
+      frontmatterFormat,
+    };
+    const content = `${JSON.stringify(payload, null, 2)}\n`;
+    await writeTextFile(wizardConfigPathFor(root), content);
+  };
+
+  const loadWizardConfig = async (root: string): Promise<WizardConfig | null> => {
+    if (!hasTauri) {
+      return null;
+    }
+    try {
+      const raw = await readTextFile(wizardConfigPathFor(root));
+      const parsed = JSON.parse(raw) as Partial<WizardConfig>;
+      if (!parsed.ssg || !parsed.contentRoot || !parsed.frontmatterFormat) {
+        return null;
+      }
+      return {
+        version: typeof parsed.version === "number" ? parsed.version : 1,
+        ssg: parsed.ssg,
+        contentRoot: parsed.contentRoot,
+        frontmatterFormat: parsed.frontmatterFormat,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const setLastProjectPath = (root: string) => {
+    try {
+      localStorage.setItem("ernest_last_project_path", root);
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  const applyWizardConfig = async (root: string) => {
+    const config = await loadWizardConfig(root);
+    if (!config) {
+      return;
+    }
+    selectedSsgId = config.ssg;
+    format = config.frontmatterFormat;
+  };
 
   const buildProjectConfig = () => ({
     version: 1,
     ssg: selectedSsgId,
-    frontmatterFormat: "yaml",
+    frontmatterFormat: format,
     autosave: {
       enabled: autosaveEnabled,
       intervalSeconds: autosaveIntervalSeconds,
@@ -436,8 +537,8 @@
       if (config.ssg) {
         selectedSsgId = config.ssg;
       }
-      if (config.frontmatterFormat === "yaml") {
-        format = "yaml";
+      if (config.frontmatterFormat === "yaml" || config.frontmatterFormat === "toml") {
+        format = config.frontmatterFormat;
       }
       if (config.autosave) {
         if (typeof config.autosave.enabled === "boolean") {
@@ -473,6 +574,135 @@
     autosaveIntervalSeconds;
     void writeProjectConfig(projectPath);
   }
+
+  const analyzeWizardFolder = async (root: string) => {
+    if (!hasTauri) {
+      return { hasMarkdown: false, detectedSsgs: [] as SSGId[] };
+    }
+    let entries: FileEntry[] = [];
+    try {
+      entries = await readDir(root, { recursive: true });
+    } catch (error) {
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+
+    const ignoreDirs = new Set([
+      "node_modules",
+      ".git",
+      "dist",
+      "build",
+      "_site",
+      ".next",
+      "public",
+    ]);
+    const fileNames = new Set<string>();
+    let hasMarkdown = false;
+
+    const walk = (items: FileEntry[]) => {
+      items.forEach((entry) => {
+        const entryPath = entry.path ?? "";
+        const entryName = (entry.name ?? entryPath.split(/[/\\]/).pop() ?? "").toLowerCase();
+        if (entry.children && entry.children.length > 0) {
+          if (entryName && ignoreDirs.has(entryName)) {
+            return;
+          }
+          walk(entry.children);
+          return;
+        }
+        if (!entryName) {
+          return;
+        }
+        fileNames.add(entryName);
+        const pathLower = entryPath.toLowerCase();
+        if (
+          entryName.endsWith(".md") ||
+          entryName.endsWith(".markdown") ||
+          pathLower.endsWith(".md") ||
+          pathLower.endsWith(".markdown")
+        ) {
+          hasMarkdown = true;
+        }
+      });
+    };
+
+    walk(entries);
+
+    const hasAnyFile = (names: string[]) => names.some((name) => fileNames.has(name));
+    const detected = new Set<SSGId>();
+
+    if (
+      hasAnyFile([
+        ".eleventy.js",
+        ".eleventy.cjs",
+        ".eleventy.mjs",
+        "eleventy.config.js",
+        "eleventy.config.cjs",
+        "eleventy.config.mjs",
+        "eleventy.config.ts",
+      ])
+    ) {
+      detected.add("eleventy");
+    }
+
+    if (hasAnyFile(["config.toml", "config.yaml", "config.yml", "hugo.toml"])) {
+      detected.add("hugo");
+    }
+
+    if (hasAnyFile(["_config.yml"])) {
+      detected.add("jekyll");
+    }
+
+    if (hasAnyFile(["gatsby-config.js", "gatsby-config.ts"])) {
+      detected.add("gatsby");
+    }
+
+    if (
+      hasAnyFile([
+        "astro.config.js",
+        "astro.config.mjs",
+        "astro.config.cjs",
+        "astro.config.ts",
+      ])
+    ) {
+      detected.add("astro");
+    }
+
+    if (fileNames.has("gemfile")) {
+      try {
+        const gemfile = await readTextFile(`${root}/Gemfile`);
+        if (/jekyll/i.test(gemfile)) {
+          detected.add("jekyll");
+        }
+      } catch {
+        // ignore Gemfile read errors
+      }
+    }
+
+    try {
+      const packageRaw = await readTextFile(`${root}/package.json`);
+      const pkg = JSON.parse(packageRaw) as {
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      const deps = {
+        ...(pkg.dependencies ?? {}),
+        ...(pkg.devDependencies ?? {}),
+      };
+      if (deps["@11ty/eleventy"] || deps["eleventy"]) {
+        detected.add("eleventy");
+      }
+      if (deps["gatsby"]) {
+        detected.add("gatsby");
+      }
+      if (deps["astro"]) {
+        detected.add("astro");
+      }
+    } catch {
+      // ignore package.json errors
+    }
+
+    return { hasMarkdown, detectedSsgs: Array.from(detected) };
+  };
 
   const readMarkdownFiles = async (root: string) => {
     let entries: FileEntry[] = [];
@@ -510,22 +740,71 @@
     files = collected;
   };
 
-  const openFolder = async () => {
+  const createWizardStarterFile = async (root: string, ssg: SSGId) => {
     if (!hasTauri) {
-      saveError = "File dialogs are available only in the desktop app.";
       return;
     }
+    let entries: FileEntry[] = [];
+    try {
+      entries = await readDir(root, { recursive: false });
+    } catch (error) {
+      saveError = error instanceof Error ? error.message : String(error);
+      return;
+    }
+    const existingNames = new Set(
+      entries
+        .map((entry) => (entry.name ?? "").toLowerCase())
+        .filter((name) => name.length > 0),
+    );
+    let fileName = "welcome.md";
+    let index = 1;
+    while (existingNames.has(fileName.toLowerCase())) {
+      fileName = `welcome-${index}.md`;
+      index += 1;
+    }
+    const filePath = `${root}/${fileName}`;
+    const template = `${wizardTemplateFor(ssg).trimEnd()}\n`;
+    await writeTextFile(filePath, template);
+    activeFile = { path: filePath, name: fileName };
+    content = template;
+    originalContent = template;
+    isNewFile = false;
+    showFrontmatterChoice = false;
+    pendingFrontmatterAction = null;
+    const parsed = parseFrontmatter(template);
+    const templatePlugin = getSsgPlugin(ssg);
+    const nextFormData = { ...templatePlugin.getDefaults(), ...parsed.data };
+    formData = nextFormData;
+    issues = templatePlugin.validate(nextFormData);
+    await readMarkdownFiles(root);
+  };
+
+  const pickFolder = async (): Promise<string | null> => {
+    if (!hasTauri) {
+      return null;
+    }
     const selected = await open({ directory: true, multiple: false });
-    if (typeof selected === "string") {
-      projectPath = selected;
-      await loadProjectConfig(selected);
-      await readMarkdownFiles(selected);
-      activeFile = null;
-      content = "";
-      originalContent = "";
-      isNewFile = true;
-      showFrontmatterChoice = false;
-      pendingFrontmatterAction = null;
+    return typeof selected === "string" ? selected : null;
+  };
+
+  const openFolder = async () => {
+    try {
+      const selected = await pickFolder();
+      if (selected) {
+        projectPath = selected;
+        setLastProjectPath(selected);
+        await applyWizardConfig(selected);
+        await loadProjectConfig(selected);
+        await readMarkdownFiles(selected);
+        activeFile = null;
+        content = "";
+        originalContent = "";
+        isNewFile = true;
+        showFrontmatterChoice = false;
+        pendingFrontmatterAction = null;
+      }
+    } catch (error) {
+      saveError = error instanceof Error ? error.message : String(error);
     }
   };
 
@@ -550,6 +829,8 @@
       const folderPath = selected.split(/[/\\]/).slice(0, -1).join("/");
       if (folderPath) {
         projectPath = folderPath;
+        setLastProjectPath(folderPath);
+        await applyWizardConfig(folderPath);
         await loadProjectConfig(folderPath);
         await readMarkdownFiles(folderPath);
       }
@@ -558,45 +839,8 @@
     }
   };
 
-  const selectWizardFolder = async () => {
-    wizardError = "";
-    try {
-      if (!hasTauri) {
-        wizardError = "Folder selection is available only in the desktop app.";
-        return;
-      }
-      const selected = await open({ directory: true, multiple: false });
-      if (typeof selected === "string") {
-        wizardFolder = selected;
-      }
-    } catch (error) {
-      wizardError =
-        error instanceof Error ? error.message : "Unable to open folder dialog.";
-    }
-  };
-
   const startNewProjectWizard = () => {
-    projectWizardSsg = selectedSsgId;
-    projectWizardFolder = null;
-    projectWizardError = "";
     showProjectWizard = true;
-  };
-
-  const selectProjectFolder = async () => {
-    projectWizardError = "";
-    try {
-      if (!hasTauri) {
-        projectWizardError = "Folder selection is available only in the desktop app.";
-        return;
-      }
-      const selected = await open({ directory: true, multiple: false });
-      if (typeof selected === "string") {
-        projectWizardFolder = selected;
-      }
-    } catch (error) {
-      projectWizardError =
-        error instanceof Error ? error.message : "Unable to open folder dialog.";
-    }
   };
 
   const openFile = async (file: FileItem) => {
@@ -846,14 +1090,6 @@
     }
   };
 
-  const buildDefaultPublishSelection = () => {
-    const next: Record<string, boolean> = {};
-    if (activeFile) {
-      next[activeFile.path] = true;
-    }
-    publishSelection = next;
-  };
-
   const openPublishModal = () => {
     if (!projectPath) {
       notify("Open a project folder first.");
@@ -863,61 +1099,25 @@
       notify("No Markdown files found in this project.");
       return;
     }
-    buildDefaultPublishSelection();
-    publishStatus = "";
     showPublishModal = true;
   };
 
-  const togglePublishSelection = (path: string) => {
-    publishSelection = {
-      ...publishSelection,
-      [path]: !publishSelection[path],
-    };
-  };
-
-  const selectAllPublishFiles = () => {
-    const next: Record<string, boolean> = {};
-    files.forEach((file) => {
-      next[file.path] = true;
-    });
-    publishSelection = next;
-  };
-
-  const clearPublishSelection = () => {
-    publishSelection = {};
-  };
-
-  const runPublish = async () => {
+  const runPublish = async (payload: { files: string[]; outputDir: string }) => {
     if (!projectPath) {
-      notify("Open a project folder first.");
-      return;
+      throw new Error("Open a project folder first.");
     }
-    const selected = Object.entries(publishSelection)
-      .filter(([, enabled]) => enabled)
-      .map(([path]) => path);
-    if (!selected.length) {
-      publishStatus = "Select at least one file to publish.";
-      return;
-    }
-    isPublishing = true;
-    publishStatus = "";
-    try {
-      const response = (await invoke("publish_project", {
-        request: {
-          projectRoot: projectPath,
-          files: selected,
-          outputDir: publishOutputDir.trim() || undefined,
-        },
-      })) as PublishResponse;
-      const warnings = response.warnings?.length
-        ? ` (${response.warnings.length} warning${response.warnings.length > 1 ? "s" : ""})`
-        : "";
-      publishStatus = `${response.summary}${warnings}`;
-    } catch (error) {
-      publishStatus = error instanceof Error ? error.message : String(error);
-    } finally {
-      isPublishing = false;
-    }
+    publishOutputDir = payload.outputDir;
+    const response = (await invoke("publish_project", {
+      request: {
+        projectRoot: projectPath,
+        files: payload.files,
+        outputDir: publishOutputDir.trim() || undefined,
+      },
+    })) as PublishResponse;
+    const warnings = response.warnings?.length
+      ? ` (${response.warnings.length} warning${response.warnings.length > 1 ? "s" : ""})`
+      : "";
+    return `${response.summary}${warnings}`;
   };
 
   const openDeployModal = () => {
@@ -925,36 +1125,25 @@
       notify("Open a project folder first.");
       return;
     }
-    deployStatus = "";
     showDeployModal = true;
   };
 
-  const runDeploy = async () => {
+  const runDeploy = async (payload: { remote: string; branch: string; outputDir: string }) => {
     if (!projectPath) {
-      notify("Open a project folder first.");
-      return;
+      throw new Error("Open a project folder first.");
     }
-    if (!deployRemote.trim()) {
-      deployStatus = "Set a remote before deploying.";
-      return;
-    }
-    isDeploying = true;
-    deployStatus = "";
-    try {
-      const response = (await invoke("deploy_project", {
-        request: {
-          projectRoot: projectPath,
-          outputDir: publishOutputDir.trim() || undefined,
-          remote: deployRemote.trim(),
-          branch: deployBranch.trim() || undefined,
-        },
-      })) as DeployResponse;
-      deployStatus = response.summary;
-    } catch (error) {
-      deployStatus = error instanceof Error ? error.message : String(error);
-    } finally {
-      isDeploying = false;
-    }
+    deployRemote = payload.remote;
+    deployBranch = payload.branch;
+    publishOutputDir = payload.outputDir;
+    const response = (await invoke("deploy_project", {
+      request: {
+        projectRoot: projectPath,
+        outputDir: publishOutputDir.trim() || undefined,
+        remote: deployRemote.trim(),
+        branch: deployBranch.trim() || undefined,
+      },
+    })) as DeployResponse;
+    return response.summary;
   };
 
 
@@ -973,26 +1162,31 @@
     issues = plugin.validate(nextFormData);
   };
 
-  const completeWizard = async () => {
-    selectedSsgId = wizardSsg;
-    if (wizardFolder) {
-      projectPath = wizardFolder;
-      await readMarkdownFiles(wizardFolder);
-    }
+  const handleWizardComplete = async (payload: {
+    ssg: SSGId;
+    folder: string;
+    frontmatterFormat: FrontmatterFormat;
+  }) => {
+    selectedSsgId = payload.ssg;
+    format = payload.frontmatterFormat;
+    projectPath = payload.folder;
+    setLastProjectPath(payload.folder);
+    await writeWizardConfig(payload.folder, payload.ssg, payload.frontmatterFormat);
+    await loadProjectConfig(payload.folder);
+    await createWizardStarterFile(payload.folder, payload.ssg);
     showWizard = false;
-    try {
-      localStorage.setItem("ernest_onboarding_done", "true");
-    } catch {
-      // ignore storage errors
-    }
   };
 
-  const completeProjectWizard = async () => {
-    selectedSsgId = projectWizardSsg;
-    if (projectWizardFolder) {
-      projectPath = projectWizardFolder;
-      await loadProjectConfig(projectWizardFolder);
-      await readMarkdownFiles(projectWizardFolder);
+  const handleProjectWizardComplete = async (payload: {
+    ssg: SSGId;
+    folder: string | null;
+  }) => {
+    selectedSsgId = payload.ssg;
+    if (payload.folder) {
+      projectPath = payload.folder;
+      setLastProjectPath(payload.folder);
+      await loadProjectConfig(payload.folder);
+      await readMarkdownFiles(payload.folder);
     }
     activeFile = null;
     content = "";
@@ -1003,8 +1197,8 @@
     issues = plugin.validate(formData);
     showProjectWizard = false;
     try {
-      localStorage.setItem("ernest_project_ssg", projectWizardSsg);
-      localStorage.setItem("ernest_project_path", projectWizardFolder ?? "");
+      localStorage.setItem("ernest_project_ssg", payload.ssg);
+      localStorage.setItem("ernest_project_path", payload.folder ?? "");
     } catch {
       // ignore storage errors
     }
@@ -1016,19 +1210,6 @@
 
   const skipWizard = () => {
     showWizard = false;
-    try {
-      localStorage.setItem("ernest_onboarding_done", "true");
-    } catch {
-      // ignore storage errors
-    }
-  };
-
-  const wizardNext = () => {
-    wizardStep = Math.min(2, wizardStep + 1);
-  };
-
-  const wizardBack = () => {
-    wizardStep = Math.max(1, wizardStep - 1);
   };
 
   const handleAutosaveIntervalChange = (event: Event) => {
@@ -1044,7 +1225,7 @@
   <header class="app-header">
     <div class="app-title">
       <h1>Ernest</h1>
-      <span>Markdown + frontmatter workspace · v0.2.0+0003</span>
+      <span>Markdown + frontmatter workspace · v0.2.2+0005</span>
     </div>
     {#if showToolbar}
       <div class="toolbar">
@@ -1129,344 +1310,51 @@
     {/if}
   </main>
 
-  {#if showWizard}
-    <div class="wizard-backdrop" role="dialog" aria-modal="true">
-      <div class="wizard-card">
-        <h2>Welcome to Ernest</h2>
-        <p>Let’s prepare your workspace in two quick steps.</p>
+  <OnboardingWizard
+    open={showWizard}
+    defaultSsg={selectedSsgId}
+    chooseFolder={pickFolder}
+    analyzeFolder={analyzeWizardFolder}
+    onComplete={handleWizardComplete}
+    onClose={skipWizard}
+  />
 
-        {#if wizardStep === 1}
-          <fieldset class="field">
-            <legend>Which SSG will you write for?</legend>
-            <div class="radio-group" role="radiogroup" aria-label="Select SSG for wizard">
-              <label class="radio-label">
-                <input
-                  type="radio"
-                name="wizard-ssg"
-                bind:group={wizardSsg}
-                value="eleventy"
-              />
-              <span>Eleventy</span>
-            </label>
-            <label class="radio-label">
-              <input
-                type="radio"
-                name="wizard-ssg"
-                bind:group={wizardSsg}
-                value="hugo"
-              />
-              <span>Hugo</span>
-            </label>
-            <label class="radio-label">
-              <input
-                type="radio"
-                name="wizard-ssg"
-                bind:group={wizardSsg}
-                value="jekyll"
-              />
-              <span>Jekyll</span>
-            </label>
-            <label class="radio-label">
-              <input
-                type="radio"
-                name="wizard-ssg"
-                bind:group={wizardSsg}
-                value="gatsby"
-              />
-              <span>Gatsby</span>
-            </label>
-            <label class="radio-label">
-              <input
-                type="radio"
-                name="wizard-ssg"
-                bind:group={wizardSsg}
-                value="astro"
-              />
-              <span>Astro</span>
-            </label>
-          </div>
-        </fieldset>
-        {:else if wizardStep === 2}
-          <div class="field">
-            <label for="wizard-folder">Where should Ernest save your Markdown files?</label>
-            <input
-              id="wizard-folder"
-              class="focus-ring"
-              type="text"
-              readonly
-              value={wizardFolder ?? ""}
-              placeholder="No folder selected"
-            />
-            <button class="focus-ring" on:click={selectWizardFolder}>
-              Choose folder
-            </button>
-            {#if wizardError}
-              <small class="wizard-error">{wizardError}</small>
-            {/if}
-          </div>
-        {/if}
+  <ProjectWizard
+    open={showProjectWizard}
+    defaultSsg={selectedSsgId}
+    chooseFolder={pickFolder}
+    requireFolder={hasTauri}
+    onCancel={cancelProjectWizard}
+    onComplete={handleProjectWizardComplete}
+  />
 
-        <div class="wizard-actions">
-          <button type="button" class="focus-ring" on:click={skipWizard}>Skip</button>
-          <button
-            type="button"
-            class="focus-ring"
-            on:click={wizardBack}
-            disabled={wizardStep === 1}
-          >
-            Back
-          </button>
-          {#if wizardStep < 2}
-            <button
-              type="button"
-              class="focus-ring"
-              on:click={wizardNext}
-            >
-              Next
-            </button>
-          {:else}
-            <button
-              type="button"
-              class="focus-ring"
-              on:click={completeWizard}
-              disabled={!wizardFolder}
-            >
-              Finish
-            </button>
-          {/if}
-        </div>
-      </div>
-    </div>
-  {/if}
+  <PublishModal
+    open={showPublishModal}
+    files={files}
+    outputDir={publishOutputDir}
+    onOutputDirChange={(value) => (publishOutputDir = value)}
+    onClose={() => (showPublishModal = false)}
+    onRun={runPublish}
+  />
 
-  {#if showProjectWizard}
-    <div class="wizard-backdrop" role="dialog" aria-modal="true">
-      <div class="wizard-card">
-        <h2>New project</h2>
-        <p>Set up a new workspace.</p>
-        <fieldset class="field">
-          <legend>Which SSG will you use?</legend>
-          <div class="radio-group" role="radiogroup" aria-label="Select SSG for project wizard">
-            <label class="radio-label">
-              <input
-                type="radio"
-                name="project-ssg"
-                bind:group={projectWizardSsg}
-                value="eleventy"
-              />
-              <span>Eleventy</span>
-            </label>
-            <label class="radio-label">
-              <input
-                type="radio"
-                name="project-ssg"
-                bind:group={projectWizardSsg}
-                value="hugo"
-              />
-              <span>Hugo</span>
-            </label>
-            <label class="radio-label">
-              <input
-                type="radio"
-                name="project-ssg"
-                bind:group={projectWizardSsg}
-                value="jekyll"
-              />
-              <span>Jekyll</span>
-            </label>
-            <label class="radio-label">
-              <input
-                type="radio"
-                name="project-ssg"
-                bind:group={projectWizardSsg}
-                value="gatsby"
-              />
-              <span>Gatsby</span>
-            </label>
-            <label class="radio-label">
-              <input
-                type="radio"
-                name="project-ssg"
-                bind:group={projectWizardSsg}
-                value="astro"
-              />
-              <span>Astro</span>
-            </label>
-          </div>
-        </fieldset>
-        <div class="field">
-          <label for="project-folder">Where should Ernest write your content?</label>
-          <input
-            id="project-folder"
-            class="focus-ring"
-            type="text"
-            readonly
-            value={projectWizardFolder ?? ""}
-            placeholder="No folder selected"
-          />
-          <button class="focus-ring" on:click={selectProjectFolder}>
-            Choose folder
-          </button>
-          {#if projectWizardError}
-            <small class="wizard-error">{projectWizardError}</small>
-          {/if}
-        </div>
+  <DeployModal
+    open={showDeployModal}
+    remote={deployRemote}
+    branch={deployBranch}
+    outputDir={publishOutputDir}
+    onRemoteChange={(value) => (deployRemote = value)}
+    onBranchChange={(value) => (deployBranch = value)}
+    onClose={() => (showDeployModal = false)}
+    onRun={runDeploy}
+  />
 
-        <div class="wizard-actions">
-          <button class="focus-ring" on:click={cancelProjectWizard}>Cancel</button>
-          <button
-            class="focus-ring"
-            on:click={completeProjectWizard}
-            disabled={!projectWizardFolder}
-          >
-            Finish
-          </button>
-        </div>
-      </div>
-    </div>
-  {/if}
-
-  {#if showPublishModal}
-    <div class="wizard-backdrop" role="dialog" aria-modal="true">
-      <div class="wizard-card">
-        <h2>Publish</h2>
-        <p>Create a local publish snapshot without network access.</p>
-
-        <div class="field">
-          <label for="publish-output">Publish directory</label>
-          <input
-            id="publish-output"
-            class="focus-ring"
-            type="text"
-            placeholder="_publish"
-            bind:value={publishOutputDir}
-          />
-          <small>Relative to the project root.</small>
-        </div>
-
-        <div class="field">
-          <div class="field-label">Select files to publish</div>
-          <div class="publish-actions">
-            <button class="focus-ring" type="button" on:click={selectAllPublishFiles}>
-              Select all
-            </button>
-            <button class="focus-ring" type="button" on:click={clearPublishSelection}>
-              Clear
-            </button>
-          </div>
-          <div class="publish-list">
-            {#each files as file}
-              <label class="publish-item">
-                <input
-                  type="checkbox"
-                  checked={!!publishSelection[file.path]}
-                  on:change={() => togglePublishSelection(file.path)}
-                />
-                <span>{file.name}</span>
-              </label>
-            {/each}
-          </div>
-        </div>
-
-        {#if publishStatus}
-          <div class="wizard-error">{publishStatus}</div>
-        {/if}
-
-        <div class="wizard-actions">
-          <button class="focus-ring" type="button" on:click={() => (showPublishModal = false)}>
-            Close
-          </button>
-          <button
-            class="focus-ring"
-            type="button"
-            on:click={runPublish}
-            disabled={isPublishing}
-          >
-            {isPublishing ? "Publishing..." : "Publish"}
-          </button>
-        </div>
-      </div>
-    </div>
-  {/if}
-
-  {#if showDeployModal}
-    <div class="wizard-backdrop" role="dialog" aria-modal="true">
-      <div class="wizard-card">
-        <h2>Deploy</h2>
-        <p>Push the published snapshot via Git over SSH.</p>
-
-        <div class="field">
-          <label for="deploy-remote">Git remote (name or SSH URL)</label>
-          <input
-            id="deploy-remote"
-            class="focus-ring"
-            type="text"
-            placeholder="origin or git@host:repo.git"
-            bind:value={deployRemote}
-          />
-        </div>
-
-        <div class="field">
-          <label for="deploy-branch">Branch</label>
-          <input
-            id="deploy-branch"
-            class="focus-ring"
-            type="text"
-            placeholder="main"
-            bind:value={deployBranch}
-          />
-        </div>
-
-        {#if deployStatus}
-          <div class="wizard-error">{deployStatus}</div>
-        {/if}
-
-        <div class="wizard-actions">
-          <button class="focus-ring" type="button" on:click={() => (showDeployModal = false)}>
-            Close
-          </button>
-          <button
-            class="focus-ring"
-            type="button"
-            on:click={runDeploy}
-            disabled={isDeploying}
-          >
-            {isDeploying ? "Deploying..." : "Deploy"}
-          </button>
-        </div>
-      </div>
-    </div>
-  {/if}
-
-  {#if showFrontmatterChoice}
-    <div class="wizard-backdrop" role="dialog" aria-modal="true">
-      <div class="wizard-card">
-        <h2>Existing frontmatter detected</h2>
-        <p>How should Ernest handle the current frontmatter?</p>
-        <div class="wizard-actions">
-          <button
-            class="focus-ring"
-            on:click={() => applyFrontmatterDecision("merge")}
-          >
-            Merge
-          </button>
-          <button
-            class="focus-ring"
-            on:click={() => applyFrontmatterDecision("replace")}
-          >
-            Replace
-          </button>
-          <button
-            class="focus-ring"
-            on:click={() => {
-              showFrontmatterChoice = false;
-              pendingFrontmatterAction = null;
-            }}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  {/if}
+  <FrontmatterChoiceModal
+    open={showFrontmatterChoice}
+    onMerge={() => applyFrontmatterDecision("merge")}
+    onReplace={() => applyFrontmatterDecision("replace")}
+    onCancel={() => {
+      showFrontmatterChoice = false;
+      pendingFrontmatterAction = null;
+    }}
+  />
 </div>

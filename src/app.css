@@ -413,6 +413,8 @@ a {
   outline-offset: 2px;
 }
 
+
+
 .wizard-backdrop {
   position: fixed;
   inset: 0;
@@ -421,6 +423,13 @@ a {
   place-items: center;
   padding: 24px;
   z-index: 3;
+}
+
+.wizard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .wizard-card {
@@ -434,6 +443,42 @@ a {
   gap: 14px;
   max-height: 90vh;
   overflow-y: auto;
+  position: relative;
+}
+
+.wizard-card .button-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wizard-card .hint {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #eef1f5;
+  color: #3a4656;
+  font-weight: 600;
+  cursor: help;
+  border: 1px solid #d5d8de;
+  font-size: 12px;
+}
+
+.wizard-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .wizard-card h2 {

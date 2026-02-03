@@ -375,3 +375,61 @@ fn resolve_asset_path(project_root: &Path, file_path: &Path, asset: &str) -> Opt
     let parent = file_path.parent()?;
     Some(parent.join(trimmed))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("ernest-test-{}-{}", name, suffix));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn resolve_output_dir_joins_relative() {
+        let root = PathBuf::from("/tmp/project-root");
+        let result = resolve_output_dir(&root, Some("_publish")).unwrap();
+        assert_eq!(result, root.join("_publish"));
+    }
+
+    #[test]
+    fn publish_project_copies_files() {
+        let project_root = temp_dir("publish");
+        let file_path = project_root.join("note.md");
+        fs::write(&file_path, "---\ntitle: Hello\n---\nBody").unwrap();
+
+        let response = publish_project(PublishRequest {
+            project_root: project_root.to_string_lossy().to_string(),
+            files: vec![file_path.to_string_lossy().to_string()],
+            output_dir: Some("_publish".into()),
+        })
+        .expect("publish should succeed");
+
+        assert!(response.ok);
+        assert!(response.summary.contains("Published"));
+        let published = project_root.join("_publish/note.md");
+        assert!(published.exists(), "expected published file to exist");
+
+        let _ = fs::remove_dir_all(&project_root);
+    }
+
+    #[test]
+    fn publish_project_fails_without_files() {
+        let project_root = temp_dir("publish-empty");
+        let result = publish_project(PublishRequest {
+            project_root: project_root.to_string_lossy().to_string(),
+            files: vec![],
+            output_dir: None,
+        });
+
+        assert!(result.is_err());
+        let _ = fs::remove_dir_all(&project_root);
+    }
+}

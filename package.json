@@ -1,6 +1,6 @@
 {
   "name": "ernest",
-  "version": "0.2.0+0003",
+  "version": "0.2.2+0005",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
     "tauri": "tauri",
     "dev:tauri": "PATH=$HOME/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:$PATH tauri dev",
     "build:tauri": "PATH=$HOME/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin:$PATH tauri build",
@@ -19,9 +20,12 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@tauri-apps/cli": "^2.0.0",
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/types": "^8.16.0",
     "svelte": "^5.49.1",
     "typescript": "^5.3.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^2.1.5"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

@@ -20,7 +20,11 @@
     },
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$HOME/**" }, { "path": "/home/**" }]
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "/home/**" },
+        { "path": "/home/Baudouin/Documents/Projets/11ty-jardin/**" }
+      ]
     }
   ]
 }
